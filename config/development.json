@@ -1,0 +1,35 @@
+{
+  "App": {
+    "fetchInterval": 60000
+  },
+  "Mongo": {
+    "uri": "mongodb://127.0.0.1:27017/%s?socketTimeoutMS=90000",
+    "dbName": "crypto",
+    "connectionParameters": {
+      "socketTimeoutMS": 0,
+      "keepAlive": true,
+      "reconnectTries": 30,
+      "useNewUrlParser": true
+    }
+  },
+  "API" : {
+    "coinMarketCap": {
+      "url" : "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest",
+      "headers": {
+        "X-CMC_PRO_API_KEY": "2fa5b48d-6f63-44c1-8bad-0dc12df513e9"
+      },
+      "dataField": "data"
+    },
+    "cryptoCompare": {
+      "url" : "https://min-api.cryptocompare.com/data/price?fsym=USD&tsyms=BTC,ETH,LTC"
+    }
+  },
+  "currencies": {
+    "base": "USD",
+    "crypto": {
+      "btc": "BTC",
+      "eth": "ETH",
+      "ltc": "LTC"
+    }
+  }
+}
