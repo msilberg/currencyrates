@@ -1,6 +1,7 @@
 {
   "App": {
-    "fetchInterval": 60000
+    "fetchInterval": 60000,
+    "port": 8080
   },
   "Mongo": {
     "uri": "mongodb://127.0.0.1:27017/%s?socketTimeoutMS=90000",

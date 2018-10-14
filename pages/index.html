@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Crypto Currency Exchange Rates</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .history {
+            display: none;
+        }
+    </style>
+    <script>
+        let socket = io.connect('http://127.0.0.1:8080');
+        socket.on('latest', (data) => {
+            renderCardRates(data);
+        });
+        socket.on('serverUpdate', (data) => {
+            renderCardRates(data);
+            renderExchangeRatesLog(data, 'serverUpdate')
+        });
+        socket.on('log', (data) => {
+            renderExchangeRatesLog(data)
+        })
+
+        function renderExchangeRatesLog(data, event) {
+            if (Object.keys(data).length === 0) return;
+            let container = $('div.history').find('table>tbody');
+            if ($('div.history').is(':visible') && event === 'serverUpdate' && data.data) {
+                container.prepend(`<tr><td>${convert2localDateTime(data.data.createdAt)}</td><td>${data.data.currencies[$.activeCurrency]}</td></tr>`);
+            } else if (data.doc && Array.isArray(data.doc)) {
+                $('div.first-page').hide();
+                $('div.history').show();
+                container.empty();
+                $('div.history').find('h4>span').html($.activeCurrency);
+                for (let item of data.doc) {
+                    container.append(`<tr><td>${convert2localDateTime(item.createdAt)}</td><td>${item.currencies[$.activeCurrency]}</td></tr>`);
+                }
+            }
+        }
+        function renderCardRates(data) {
+            if (Object.keys(data).length === 0) return;
+            const rates = data.data.currencies;
+            $('div.container').find('p#record-date span').html(convert2localDateTime(data.data.createdAt));
+            $('div.container').find('p#card-text-btc').html(`&dollar;&nbsp;${rates.BTC}`);
+            $('div.container').find('p#card-text-eth').html(`&dollar;&nbsp;${rates.ETH}`);
+            $('div.container').find('p#card-text-ltc').html(`&dollar;&nbsp;${rates.LTC}`);
+        }
+        function back2home() {
+            $('div.first-page').show();
+            $('div.history').hide();
+        }
+        function convert2localDateTime(dateStr) {
+            let date = new Date(dateStr.toString());
+            return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+        }
+        $(document).ready(() => {
+            $.activeCurrency = null;
+            $('a').on('click', (e) => {
+                e.preventDefault();
+                switch ($(e.target).attr('data-action')) {
+                    case 'show-history':
+                        $.activeCurrency = $(e.target).attr('data-currency').toString().toUpperCase();
+                        socket.emit('getLog', { model: 'exchange_log', currency: $.activeCurrency });
+                        break;
+                    case 'back2home':
+                        back2home();
+                        break;
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+<div class="container first-page">
+    <div class="row justify-content-center">
+        <div class="col-7">
+            <p>
+                <h4>Crypto Currencies Exchange Rates to USD</h4>
+            </p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-7">
+            <p id="record-date">Last time updated at: <span></span></p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm">
+            <div class="card" style="width: 16rem;">
+                <div class="card-body">
+                    <h5 class="card-title">BTC</h5>
+                    <p class="card-text" id="card-text-btc"></p>
+                    <a href="#" class="btn btn-primary" data-action="show-history" data-currency="btc">See history</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 16rem;">
+                <div class="card-body">
+                    <h5 class="card-title">ETH</h5>
+                    <p class="card-text" id="card-text-eth"></p>
+                    <a href="#" class="btn btn-primary" data-action="show-history" data-currency="eth">See history</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 16rem;">
+                <div class="card-body">
+                    <h5 class="card-title">LTC</h5>
+                    <p class="card-text" id="card-text-ltc"></p>
+                    <a href="#" class="btn btn-primary" data-action="show-history" data-currency="ltc">See history</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="container history">
+    <br>
+    <p>
+        <a href="#" class="btn btn-primary" data-action="back2home">&larr;&nbsp;Back</a>
+    </p>
+    <h4>Exchange history rates log for <span></span></h4>
+    <table class="table">
+        <thead class="thead-dark">
+        <tr>
+            <th scope="col">Date & Time</th>
+            <th scope="col">Rate</th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

@@ -3,21 +3,29 @@
  */
 
 // Libs & utils
-const server = require('http').createServer()
+const server = require('http').createServer(handler)
 const io = require('socket.io')(server)
 const mongoose = require('mongoose')
+const fs = require('fs')
 const requireDirectory = require('require-directory')
 const models = requireDirectory(module, './models')
 const config = require('config')
 const request = require('request')
+const EventEmitter = require('events')
 const format = require('util').format
 const parser = require('./parser')
 
-// Mongo Connection
-mongoose.connect(format(config.get('Mongo.uri'), config.get('Mongo.dbName')), config.get('Mongo.connectionParameters')).then(
-    () => { console.log('Connected to MongoDB') },
-    err => { console.log(err) },
-)
+// Events Server
+class EmitterServer extends EventEmitter {
+    constructor() {
+        super()
+        this._serverUpdate = null
+    }
+    set serverUpdate(e) { this._serverUpdate = e }
+    get serverUpdate() { return this._serverUpdate }
+}
+
+const eventEmitter = new EmitterServer()
 
 /**
  * @param {String} serviceName
@@ -75,10 +83,57 @@ function fetchCurrenciesData() {
         const model = new models['exchange_log']({ currencies: mergedResult })
         const dbResult = await model.save()
         console.log(dbResult)
+        eventEmitter.emit('serverUpdate', dbResult)
     }).catch((err) => {
         console.log(err)
     })
-    // setTimeout(fetchCurrenciesData, parseInt(config.get('App.fetchInterval')))
+    setTimeout(fetchCurrenciesData, parseInt(config.get('App.fetchInterval')))
 }
 
 fetchCurrenciesData()
+
+// Mongo Connection
+mongoose.connect(format(config.get('Mongo.uri'), config.get('Mongo.dbName')), config.get('Mongo.connectionParameters')).then(
+    () => { console.log('Connected to MongoDB') },
+    err => { console.log(err) },
+)
+
+// Starting Server
+
+server.listen(config.get('App.port'));
+
+function handler (req, res) {
+    fs.readFile(
+        __dirname + '/pages/index.html',
+        function (err, data) {
+            if (err) {
+                res.writeHead(500);
+                return res.end('Error loading index.html');
+            }
+            res.writeHead(200);
+            res.end(data);
+        }
+    );
+}
+
+io.on('connection', async (socket) => {
+    console.log('User connected')
+    if (!eventEmitter.serverUpdate) {
+        eventEmitter.serverUpdate = eventEmitter.on('serverUpdate', (result) => {
+            io.sockets.emit('serverUpdate', { data: result });
+        })
+    }
+    const result =  await models['exchange_log'].find({}).sort({ createdAt: -1 }).limit(1)
+    socket.emit('latest', { data: result[0] });
+    socket.on('getLog', async (req) => {
+        if (req && req.model && models.hasOwnProperty(req.model.toString())) {
+            const results = await models[req.model].find(
+                {},
+                ((req.currency)? Object.assign({ [`currencies.${req.currency.toString().toUpperCase()}`] : 1} ,{ createdAt: 1 }) : { currencies: 1, createdAt: 1 })
+            ).sort({ createdAt: -1 })
+            socket.emit('log', { model: req.model, doc: results, currency: req.currency.toString().toUpperCase() })
+        } else {
+            socket.emit('Error')
+        }
+    })
+});
