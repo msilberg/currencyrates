@@ -20,7 +20,7 @@ CONTAINER ID        IMAGE               COMMAND                  CREATED        
 80c4efff0102        mongo               "docker-entrypoint.s…"   12 minutes ago      Up 12 minutes       0.0.0.0:27017->27017/tcp   crypto_db
 ```
 
-Finally you can approach Application's first page at http://localhost:8080/
+Finally you can reach Application's first page at http://localhost:8080/
 
 **Supported Features**
 The application fetches the data simultaneously and once a second from three next feeds:
