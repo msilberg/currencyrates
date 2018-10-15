@@ -57,3 +57,22 @@ function cryptoCompare(data) {
 }
 
 module.exports.cryptoCompare = cryptoCompare
+
+/**
+ * @param {Array} data
+ * @return {Array}
+ */
+function coinApiIo(data) {
+    const result = []
+    for (let item of data) {
+        if (item.hasOwnProperty('asset_id_quote') && relevantCurrencies.includes(item['asset_id_quote'].toString().toLowerCase())) {
+            result.push({
+                [symbolKeyName]: item['asset_id_quote'].toString().toUpperCase(),
+                [priceKeyName]: 1 / parseFloat(item['rate'])
+            })
+        }
+    }
+    return result
+}
+
+module.exports.coinApiIo = coinApiIo

@@ -16,39 +16,84 @@
     </style>
     <script>
         let socket = io.connect('http://127.0.0.1:8080');
-        socket.on('latest', (data) => {
-            renderCardRates(data);
-        });
-        socket.on('serverUpdate', (data) => {
-            renderCardRates(data);
-            renderExchangeRatesLog(data, 'serverUpdate')
-        });
-        socket.on('log', (data) => {
-            renderExchangeRatesLog(data)
-        })
-
-        function renderExchangeRatesLog(data, event) {
-            if (Object.keys(data).length === 0) return;
-            let container = $('div.history').find('table>tbody');
-            if ($('div.history').is(':visible') && event === 'serverUpdate' && data.data) {
-                container.prepend(`<tr><td>${convert2localDateTime(data.data.createdAt)}</td><td>${data.data.currencies[$.activeCurrency]}</td></tr>`);
-            } else if (data.doc && Array.isArray(data.doc)) {
-                $('div.first-page').hide();
-                $('div.history').show();
-                container.empty();
-                $('div.history').find('h4>span').html($.activeCurrency);
-                for (let item of data.doc) {
-                    container.append(`<tr><td>${convert2localDateTime(item.createdAt)}</td><td>${item.currencies[$.activeCurrency]}</td></tr>`);
+        socket.on('firstPage', (data) => {
+            if (typeof data === 'object') {
+                for (let model in data) {
+                    if (data.hasOwnProperty(model)) {
+                        switch (model) {
+                            case 'exchange_log':
+                                renderCardRates(data[model].data);
+                                break;
+                            case 'comment':
+                                renderComments(data[model].data, 'firstPage')
+                                break;
+                        }
+                    }
                 }
             }
-        }
+        });
+        socket.on('serverUpdate', (data) => {
+            if (typeof data === 'object' && data.hasOwnProperty('model') && data.hasOwnProperty('data')) {
+                switch (data.model) {
+                    case 'exchange_log':
+                        renderCardRates(data.data);
+                        renderExchangeRatesLog(data.data, 'serverUpdate');
+                        break;
+                    case 'comment':
+                        renderComments(data.data, 'serverUpdate');
+                        break;
+                }
+            }
+        });
+        socket.on('readResult', (data) => {
+            renderExchangeRatesLog(data.data, 'readResult')
+        })
         function renderCardRates(data) {
             if (Object.keys(data).length === 0) return;
-            const rates = data.data.currencies;
-            $('div.container').find('p#record-date span').html(convert2localDateTime(data.data.createdAt));
+            const rates = data.currencies;
+            $('div.container').find('p#record-date span').html(convert2localDateTime(data.createdAt));
             $('div.container').find('p#card-text-btc').html(`&dollar;&nbsp;${rates.BTC}`);
             $('div.container').find('p#card-text-eth').html(`&dollar;&nbsp;${rates.ETH}`);
             $('div.container').find('p#card-text-ltc').html(`&dollar;&nbsp;${rates.LTC}`);
+        }
+        function renderExchangeRatesLog(data, event) {
+            if (Object.keys(data).length === 0) return;
+            let container = $('div.history').find('table>tbody');
+            switch (event) {
+                case 'serverUpdate':
+                    if ($('div.history').is(':visible')) {
+                        container.prepend(`<tr><td>${convert2localDateTime(data.createdAt)}</td><td>${data.currencies[$.activeCurrency]}</td></tr>`);
+                    }
+                    break;
+                case 'readResult':
+                    $('div.first-page').hide();
+                    $('div.history').show();
+                    container.empty();
+                    $('div.history').find('h4>span').html($.activeCurrency);
+                    for (let item of data) {
+                        container.append(`<tr><td>${convert2localDateTime(item.createdAt)}</td><td>${item.currencies[$.activeCurrency]}</td></tr>`);
+                    }
+                    break;
+            }
+         }
+        function renderComments(data, event) {
+            let container = $('div.first-page').find('table#comments-rendered>tbody');
+            switch (event) {
+                case 'firstPage':
+                    if (Array.isArray(data)) {
+                        container.empty();
+                        for (let item of data) {
+                            container.append(`<tr><td>${item.text}</td><td>${convert2localDateTime(item.createdAt)}</td></tr>`);
+                        }
+                    }
+                    break;
+                case 'serverUpdate':
+                    if (typeof data === 'object') {
+                        container.prepend(`<tr><td>${data.text}</td><td>${convert2localDateTime(data.createdAt)}</td></tr>`)
+                        $('div.first-page').find('textarea#comments').val('');
+                    }
+                    break;
+            }
         }
         function back2home() {
             $('div.first-page').show();
@@ -65,10 +110,16 @@
                 switch ($(e.target).attr('data-action')) {
                     case 'show-history':
                         $.activeCurrency = $(e.target).attr('data-currency').toString().toUpperCase();
-                        socket.emit('getLog', { model: 'exchange_log', currency: $.activeCurrency });
+                        socket.emit('read', { model: 'exchange_log', currency: $.activeCurrency });
                         break;
                     case 'back2home':
                         back2home();
+                        break;
+                    case 'add-comment':
+                        let commentsTa = $('div.first-page').find('textarea#comments');
+                        if (commentsTa.val().length > 0) {
+                            socket.emit('write', { model: 'comment', data: { text: commentsTa.val() } });
+                        }
                         break;
                 }
             });
@@ -76,49 +127,79 @@
     </script>
 </head>
 <body>
-<div class="container first-page">
-    <div class="row justify-content-center">
-        <div class="col-7">
-            <p>
-                <h4>Crypto Currencies Exchange Rates to USD</h4>
-            </p>
+<!-- First Page -->
+<div class="first-page">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-7">
+                <p>
+                <h3>Crypto Currencies Exchange Rates to USD</h3>
+                </p>
+            </div>
         </div>
-    </div>
-    <div class="row">
-        <div class="col-7">
-            <p id="record-date">Last time updated at: <span></span></p>
+        <div class="row">
+            <div class="col-7">
+                <p id="record-date">Last time updated at: <span></span></p>
+            </div>
         </div>
-    </div>
-    <div class="row">
-        <div class="col-sm">
-            <div class="card" style="width: 16rem;">
-                <div class="card-body">
-                    <h5 class="card-title">BTC</h5>
-                    <p class="card-text" id="card-text-btc"></p>
-                    <a href="#" class="btn btn-primary" data-action="show-history" data-currency="btc">See history</a>
+        <div class="row">
+            <div class="col-sm">
+                <div class="card" style="width: 16rem;">
+                    <div class="card-body">
+                        <h5 class="card-title">BTC</h5>
+                        <p class="card-text" id="card-text-btc"></p>
+                        <a href="#" class="btn btn-primary" data-action="show-history" data-currency="btc">See history</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm">
+                <div class="card" style="width: 16rem;">
+                    <div class="card-body">
+                        <h5 class="card-title">ETH</h5>
+                        <p class="card-text" id="card-text-eth"></p>
+                        <a href="#" class="btn btn-primary" data-action="show-history" data-currency="eth">See history</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm">
+                <div class="card" style="width: 16rem;">
+                    <div class="card-body">
+                        <h5 class="card-title">LTC</h5>
+                        <p class="card-text" id="card-text-ltc"></p>
+                        <a href="#" class="btn btn-primary" data-action="show-history" data-currency="ltc">See history</a>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-sm">
-            <div class="card" style="width: 16rem;">
-                <div class="card-body">
-                    <h5 class="card-title">ETH</h5>
-                    <p class="card-text" id="card-text-eth"></p>
-                    <a href="#" class="btn btn-primary" data-action="show-history" data-currency="eth">See history</a>
-                </div>
-            </div>
+    </div>
+    <div class="container">
+        <br/>
+        <br/>
+        <div class="row">
+            <table class="table" id="comments-rendered">
+                <thead>
+                <tr>
+                    <th colspan="2">Comments</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td>no comments yet...</td>
+                </tr>
+                </tbody>
+            </table>
         </div>
-        <div class="col-sm">
-            <div class="card" style="width: 16rem;">
-                <div class="card-body">
-                    <h5 class="card-title">LTC</h5>
-                    <p class="card-text" id="card-text-ltc"></p>
-                    <a href="#" class="btn btn-primary" data-action="show-history" data-currency="ltc">See history</a>
-                </div>
+        <div class="row">
+            <div class="col">
+                <textarea id="comments" cols="60" rows="3" maxlength="150" placeholder="write your comment here"></textarea>
+            </div>
+            <div class="col">
+                <a href="#" class="btn btn-primary" data-action="add-comment">Add Comment</a>
             </div>
         </div>
     </div>
 </div>
+<!-- History of Logs -->
 <div class="container history">
     <br>
     <p>

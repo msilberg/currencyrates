@@ -59,7 +59,8 @@ function makeGetRequest(serviceName) {
 function fetchCurrenciesData() {
     Promise.all([
         makeGetRequest('coinMarketCap'),
-        makeGetRequest('cryptoCompare')
+        makeGetRequest('cryptoCompare'),
+        makeGetRequest('coinApiIo')
     ]).then(async (results) => {
         let service
         const mergedResult = {}
@@ -83,7 +84,7 @@ function fetchCurrenciesData() {
         const model = new models['exchange_log']({ currencies: mergedResult })
         const dbResult = await model.save()
         console.log(dbResult)
-        eventEmitter.emit('serverUpdate', dbResult)
+        eventEmitter.emit('serverUpdate', { model: 'exchange_log', data: dbResult })
     }).catch((err) => {
         console.log(err)
     })
@@ -119,21 +120,44 @@ function handler (req, res) {
 io.on('connection', async (socket) => {
     console.log('User connected')
     if (!eventEmitter.serverUpdate) {
-        eventEmitter.serverUpdate = eventEmitter.on('serverUpdate', (result) => {
-            io.sockets.emit('serverUpdate', { data: result });
+        eventEmitter.serverUpdate = eventEmitter.on('serverUpdate', (data) => {
+            io.sockets.emit('serverUpdate', data);
         })
     }
-    const result =  await models['exchange_log'].find({}).sort({ createdAt: -1 }).limit(1)
-    socket.emit('latest', { data: result[0] });
-    socket.on('getLog', async (req) => {
-        if (req && req.model && models.hasOwnProperty(req.model.toString())) {
-            const results = await models[req.model].find(
-                {},
-                ((req.currency)? Object.assign({ [`currencies.${req.currency.toString().toUpperCase()}`] : 1} ,{ createdAt: 1 }) : { currencies: 1, createdAt: 1 })
-            ).sort({ createdAt: -1 })
-            socket.emit('log', { model: req.model, doc: results, currency: req.currency.toString().toUpperCase() })
+    socket.use((packet, next) => {
+        if (
+            ['read', 'write'].includes(packet[0].toString()) && (
+                !packet[1] ||
+                typeof packet[1] !== 'object' ||
+                !packet[1].hasOwnProperty('model') ||
+                !models.hasOwnProperty(packet[1].model.toString())
+            )
+        ) {
+            next('Error', 'Read and write events require correct model to be provided along with them')
         } else {
-            socket.emit('Error')
+            next()
         }
+    })
+    const resultExchangeLog =  await models['exchange_log'].find({}).sort({ createdAt: -1 }).limit(1)
+    const resultComment =  await models['comment'].find({}).sort({ createdAt: -1 })
+    socket.emit('firstPage', {
+        exchange_log: {
+            data: resultExchangeLog[0]
+        },
+        comment: {
+            data: resultComment
+        }
+    });
+    socket.on('read', async (req) => {
+        const results = await models[req.model].find(
+            {},
+            ((req.currency)? Object.assign({ [`currencies.${req.currency.toString().toUpperCase()}`] : 1} ,{ createdAt: 1 }) : { currencies: 1, createdAt: 1 })
+        ).sort({ createdAt: -1 })
+        socket.emit('readResult', { model: req.model, data: results })
+    })
+    socket.on('write', async (req) => {
+        const model = models[req.model](req.data)
+        const dbResult = await model.save()
+        io.sockets.emit('serverUpdate', { model: req.model, data: dbResult })
     })
 });
