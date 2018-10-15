@@ -1,6 +1,6 @@
 {
   "name": "currencyrates",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Currency Rates In Real Time",
   "main": "index.js",
   "scripts": {
