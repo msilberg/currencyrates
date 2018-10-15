@@ -18,12 +18,13 @@ If it is working then you should see following output
 
 ```
 CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                      NAMES
-80c4efff0102        mongo               "docker-entrypoint.s…"   12 minutes ago      Up 12 minutes       0.0.0.0:27017->27017/tcp   crypto_db
+23e8190628d0        mongo               "docker-entrypoint.s…"   6 seconds ago       Up 5 seconds        0.0.0.0:27017->27017/tcp   currencyrates_crypto_1
 ```
 
 Finally you can reach Application's first page at http://localhost:8080/
 
 **Supported Features**
+
 The application fetches the data simultaneously and once a second from three next feeds:
 * Coin Market Cap
 * Crypto Compare
