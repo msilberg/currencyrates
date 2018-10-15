@@ -4,7 +4,7 @@
     "port": 8080
   },
   "Mongo": {
-    "uri": "mongodb://crypto_db:27017/%s?socketTimeoutMS=90000",
+    "uri": "mongodb://127.0.0.1:27017/%s?socketTimeoutMS=90000",
     "dbName": "crypto",
     "connectionParameters": {
       "socketTimeoutMS": 0,

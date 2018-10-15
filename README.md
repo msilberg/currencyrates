@@ -3,6 +3,7 @@
 **Requirements**
 * node 8*
 * docker 18.06.1-ce
+* docker-compose
 
 **Installation & First Run**
 * git clone PROJECT_URL

@@ -1,0 +1,10 @@
+version: "2"
+
+services:
+
+  crypto:
+    image: mongo
+    volumes:
+      - ./data:/data/db
+    ports:
+      - "27017:27017"
